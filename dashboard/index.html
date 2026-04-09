@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bayse Sibyl Dashboard</title>
+  <link rel="stylesheet" href="index.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="glass-container">
+    <header class="header">
+      <div class="logo">
+        <div class="orb"></div>
+        <h1>BAYSE <span class="accent">AMM</span></h1>
+      </div>
+      <div class="header-status">
+        <span class="pulse-ring"></span>
+        <span id="botStateLabel">System Active</span>
+      </div>
+    </header>
+
+    <main class="dashboard-grid">
+      
+      <!-- Metrics Section -->
+      <section class="metrics-panel">
+        <div class="metric-card">
+          <p class="metric-title">Today's Net P&L</p>
+          <h2 id="dailyPnl" class="metric-value">₦0</h2>
+          <div class="metric-subtitle">Aggregate Realized</div>
+        </div>
+        
+        <div class="metric-card">
+          <p class="metric-title">Kill-Switches</p>
+          <h2 id="killSwitches" class="metric-value warning">0</h2>
+          <div class="metric-subtitle">Triggered today</div>
+        </div>
+
+        <div class="metric-card">
+          <p class="metric-title">Completed Windows</p>
+          <h2 id="completedWindows" class="metric-value">0</h2>
+          <div class="metric-subtitle">Total sequences run</div>
+        </div>
+      </section>
+
+      <!-- Terminal Log Section -->
+      <section class="terminal-panel">
+        <div class="panel-header">
+          <h3>Neural Activity Feed</h3>
+          <div class="controls">
+            <button class="cmd-btn" onclick="sendCommand('pause')">Pause</button>
+            <button class="cmd-btn" onclick="sendCommand('resume')">Resume</button>
+            <button class="cmd-btn emergency" onclick="sendCommand('emergency_stop')">Force Stop</button>
+          </div>
+        </div>
+        <div class="terminal-window" id="terminalOutput">
+          <!-- Logs injected here -->
+        </div>
+      </section>
+
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
