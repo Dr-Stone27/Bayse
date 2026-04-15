@@ -16,11 +16,14 @@ logger = logging.getLogger(__name__)
 
 class MarketStateMachine:
     def __init__(self, market_id: str, event_id: str, start_time: datetime, threshold: float, 
-                 rest: BayseRestClient, risk: RiskEngine, db: DatabaseManager, binance: BinanceWSClient):
+                 rest: BayseRestClient, risk: RiskEngine, db: DatabaseManager, binance: BinanceWSClient,
+                 up_outcome_id: str, down_outcome_id: str):
         self.market_id = market_id
         self.event_id = event_id
         self.start_time = start_time
         self.threshold = threshold
+        self.up_outcome_id = up_outcome_id
+        self.down_outcome_id = down_outcome_id
         
         self.rest = rest
         self.risk = risk
@@ -28,7 +31,7 @@ class MarketStateMachine:
         self.binance = binance
         
         self.execution = ExecutionEngine(self.rest, market_id, event_id)
-        self.reprice = RepriceEngine(self.binance, self.execution, self.threshold)
+        self.reprice = RepriceEngine(self.binance, self.execution, self.threshold, self.up_outcome_id, self.down_outcome_id)
         
         self.ws = BayseWSClient(self.event_id, self.market_id, self._on_ws_message)
         
@@ -103,11 +106,21 @@ class MarketStateMachine:
             # Phase 03: Post orders (T+0:15)
             await self._wait_until_offset(15)
             self.phase = "QUOTE"
-            logger.info("ORDERS POST - Initializing at ₦52 and ₦54")
+            logger.info("ORDERS POST - Initializing dynamically")
+            
+            amount_ngn = self.pairs_minted * 100
+            elapsed_seconds = int(datetime.now(timezone.utc).timestamp() - self.start_time.timestamp())
+            initial_asks = self.reprice.calculate_asks(max(elapsed_seconds, 0))
+            if initial_asks:
+                up_ask = initial_asks[0] / 100.0
+                down_ask = initial_asks[1] / 100.0
+            else:
+                up_ask = Config.UP_ASK_PRICE
+                down_ask = Config.DOWN_ASK_PRICE
             
             orders = [
-                {"side": "sell", "outcome": "Up", "price": Config.UP_ASK_PRICE, "size": self.pairs_minted},
-                {"side": "sell", "outcome": "Down", "price": Config.DOWN_ASK_PRICE, "size": self.pairs_minted}
+                {"side": "SELL", "outcomeId": self.up_outcome_id, "amount": amount_ngn, "type": "LIMIT", "currency": "NGN", "price": up_ask, "timeInForce": "GTC", "postOnly": True},
+                {"side": "SELL", "outcomeId": self.down_outcome_id, "amount": amount_ngn, "type": "LIMIT", "currency": "NGN", "price": down_ask, "timeInForce": "GTC", "postOnly": True}
             ]
             if not Config.DRY_RUN:
                 results = await self.execution.place_orders(orders)
@@ -134,7 +147,8 @@ class MarketStateMachine:
             logger.info("BURN START - Canceling open orders and burning")
             if not Config.DRY_RUN:
                 # Execution engine handles T+14:30 hard stop tracking internally now
-                await self.execution.cancel_all_and_burn(self.active_order_ids, self.start_time.timestamp())
+                remaining_shares = max(0, self.pairs_minted - max(self.risk.position.up_filled, self.risk.position.down_filled))
+                await self.execution.cancel_all_and_burn(self.active_order_ids, self.start_time.timestamp(), remaining_shares * 100)
                 
             # Phase 07: Resolve (T+15:00)
             await self._wait_until_offset(15 * 60)
@@ -168,15 +182,17 @@ class MarketStateMachine:
                     if self.db_window_id:
                         self.db.update_window(self.db_window_id, {"kill_switch_fired": 1, "kill_switch_reason": "Toxicity fill ratio threshold"})
                     if not Config.DRY_RUN:
-                        await self.execution.cancel_all_and_burn(self.active_order_ids, self.start_time.timestamp())
+                        remaining_shares = max(0, self.pairs_minted - max(self.risk.position.up_filled, self.risk.position.down_filled))
+                        await self.execution.cancel_all_and_burn(self.active_order_ids, self.start_time.timestamp(), remaining_shares * 100)
                     return 
                 
                 # 2. Reprice
                 if not Config.DRY_RUN and not self._kill_triggered:
                     # Calculates remaining inventory to avoid placing 50 size asks when we only have 2 left
                     remaining_inventory = max(0, self.pairs_minted - max(self.risk.position.up_filled, self.risk.position.down_filled))
+                    elapsed_seconds = int(datetime.now(timezone.utc).timestamp() - self.start_time.timestamp())
                     if remaining_inventory > 0:
-                         self.active_order_ids = await self.reprice.run_cycle(self.active_order_ids, remaining_inventory)
+                         self.active_order_ids = await self.reprice.run_cycle(self.active_order_ids, remaining_inventory, max(elapsed_seconds, 0))
                     if self.db_window_id:
                          # we could log increment reprice count here
                          pass

@@ -41,7 +41,7 @@ class BayseRestClient:
             await self.session.close()
 
     def _generate_signature(self, timestamp: str, method: str, path: str, body: str = "") -> str:
-        body_hash = hashlib.sha256(body.encode('utf-8')).hexdigest()
+        body_hash = hashlib.sha256(body.encode('utf-8')).hexdigest() if body else ""
         payload = f"{timestamp}.{method}.{path}.{body_hash}"
         signature_bytes = hmac.new(
             Config.SECRET_KEY.encode("utf-8"),

@@ -17,10 +17,10 @@ class Config:
     # Connections
     REST_URL: str = "https://relay.bayse.markets"
     BAYSE_WS_URL: str = "wss://socket.bayse.markets/ws/v1/markets"
-    BINANCE_WS_URL: str = "wss://stream.binance.com:9443/ws/btcusdt@trade"
+    BINANCE_WS_URL: str = "wss://stream.binance.com:9443/ws/btcusdt@aggTrade"
 
     # Strategy: Capital
-    BTC_MINT_AMOUNT: int   = int(os.getenv("BTC_MINT_AMOUNT", "5000"))
+    BTC_MINT_AMOUNT: int   = int(os.getenv("BTC_MINT_AMOUNT", "500"))
     ETH_MINT_AMOUNT: int   = int(os.getenv("ETH_MINT_AMOUNT", "500"))
 
     # Strategy: Pricing
@@ -33,7 +33,7 @@ class Config:
     REPRICE_INTERVAL_SEC: int = int(os.getenv("REPRICE_INTERVAL_SEC", "30"))
 
     # Risk Controls
-    KILL_SWITCH_RATIO: float       = float(os.getenv("KILL_SWITCH_RATIO", "0.70"))
+    KILL_SWITCH_RATIO: float       = float(os.getenv("KILL_SWITCH_RATIO", "0.90"))
     DAILY_STOP_LOSS: int           = int(os.getenv("DAILY_STOP_LOSS", "2000"))
     MAX_SINGLE_WINDOW_LOSS: int    = int(os.getenv("MAX_SINGLE_WINDOW_LOSS", "500"))
     BURN_RETRY_INTERVAL_MS: int    = int(os.getenv("BURN_RETRY_INTERVAL_MS", "200"))

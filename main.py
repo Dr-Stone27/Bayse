@@ -33,16 +33,17 @@ class MainOrchestrator:
         market_id = market_data["id"]
         event_id = market_data["eventId"]
         
-        if "BTC" not in event_id.upper() and "BITCOIN" not in event_id.upper():
-             pass 
-
-        threshold = float(market_data.get("threshold", 83000))
+        threshold = float(market_data.get("eventThreshold", 83000))
+        up_outcome_id = market_data.get("outcome1Id", "")
+        down_outcome_id = market_data.get("outcome2Id", "")
         
-        start_time_str = market_data.get("startTime")
-        if not start_time_str:
+        closing_date_str = market_data.get("closingDate")
+        if not closing_date_str:
             return
             
-        start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+        import datetime as dt
+        closing_date = datetime.fromisoformat(closing_date_str.replace('Z', '+00:00'))
+        start_time = closing_date - dt.timedelta(minutes=15)
         
         if (datetime.now(timezone.utc) - start_time).total_seconds() > 15 * 60:
             return
@@ -57,7 +58,9 @@ class MainOrchestrator:
              rest=self.rest_client,
              risk=risk,
              db=self.db,
-             binance=self.binance_ws
+             binance=self.binance_ws,
+             up_outcome_id=up_outcome_id,
+             down_outcome_id=down_outcome_id
         )
         
         logger.info(f"Spawning task for market {market_id}")
@@ -99,17 +102,22 @@ class MainOrchestrator:
                     await asyncio.sleep(10)
                     continue
                 
-                path = "/v1/pm/events?status=open&currency=NGN"
+                path = "/v1/pm/events/series/crypto-btc-15m/lean-events"
                 response = await self.rest_client.request("GET", path)
-                events = response if isinstance(response, list) else response.get("data", [])
+                events = response.get("events", []) if isinstance(response, dict) else []
                 
-                for event in events:
-                    event_id = event["id"]
-                    markets = event.get("markets", [])
-                    for market in markets:
+                open_event = next((e for e in events if e.get("status") == "open"), None)
+                
+                if open_event:
+                    event_id = open_event["id"]
+                    markets = open_event.get("markets", [])
+                    if markets:
+                        market = markets[0]
                         market_id = market["id"]
                         if market_id not in self.active_markets:
                             market["eventId"] = event_id
+                            market["eventThreshold"] = open_event.get("eventThreshold", 83000)
+                            market["closingDate"] = open_event.get("closingDate")
                             await self.spawn_market_task(market)
                             
             except Exception as e:

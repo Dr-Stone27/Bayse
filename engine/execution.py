@@ -17,7 +17,8 @@ class ExecutionEngine:
         try:
             logger.info(f"Minting ₦{amount} shares for market {self.market_id}")
             path = f"/v1/pm/markets/{self.market_id}/mint"
-            payload = {"amount": amount}
+            quantity = amount // 100
+            payload = {"quantity": quantity, "currency": "NGN"}
             await self.rest_client.request("POST", path, data=payload)
             return True
         except Exception as e:
@@ -49,11 +50,11 @@ class ExecutionEngine:
         tasks = [_cancel_single_order(oid) for oid in order_ids]
         await asyncio.gather(*tasks)
 
-    async def cancel_all_and_burn(self, active_order_ids: List[str], window_start_time: float) -> bool:
+    async def cancel_all_and_burn(self, active_order_ids: List[str], window_start_time: float, amount_ngn: int) -> bool:
         await self.cancel_orders(active_order_ids)
-        return await self.burn_shares(window_start_time)
+        return await self.burn_shares(window_start_time, amount_ngn)
 
-    async def burn_shares(self, window_start_time: float) -> bool:
+    async def burn_shares(self, window_start_time: float, amount_ngn: int) -> bool:
         """Attempt to burn shares. Strict T+14:30 hard stop logic."""
         path = f"/v1/pm/markets/{self.market_id}/burn"
         logger.info(f"Attempting to burn inventory for market {self.market_id}")
@@ -66,7 +67,8 @@ class ExecutionEngine:
                 return False
 
             try:
-                await self.rest_client.request("POST", path)
+                payload = {"quantity": amount_ngn, "currency": "NGN"}
+                await self.rest_client.request("POST", path, data=payload)
                 logger.info(f"Burn successful for market {self.market_id}")
                 return True
             except Exception as e:
